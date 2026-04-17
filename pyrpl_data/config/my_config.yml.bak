@@ -1,0 +1,139 @@
+pyrpl:
+  background_color: ''
+  dock_positions: "\0\0\0\xFF\0\0\0\0\xFD\0\0\0\x01\0\0\0\x02\0\0\x05\xE8\0\0\x03\
+    4\xFC\x01\0\0\0\x01\xFC\0\0\0\0\0\0\x05\xE8\0\0\0c\0\xFF\xFF\xFF\xFC\x02\0\0\0\
+    \x02\xFC\0\0\0\0\0\0\0\x82\0\0\0_\x01\0\0\x14\xFA\0\0\0\0\x01\0\0\0\n\xFB\0\0\0\
+    \ \0a\0s\0g\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\0\0\0\xFF\xFF\xFF\xFF\
+    \0\0\0`\0\xFF\xFF\xFF\xFB\0\0\0\x1E\0i\0q\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0\
+    )\0\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0\x16\0\xFF\xFF\xFF\xFB\0\0\0 \0p\0i\0d\0s\0 \0\
+    (\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0`\0\xFF\xFF\xFF\
+    \xFB\0\0\0 \0i\0i\0r\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\
+    \xFF\0\0\0\x16\0\xFF\xFF\xFF\xFB\0\0\0\"\0t\0r\0i\0g\0s\0 \0(\0m\0y\0_\0c\0o\0\
+    n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0\x16\0\xFF\xFF\xFF\xFB\0\0\0 \0p\0\
+    w\0m\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0\x16\
+    \0\xFF\xFF\xFF\xFB\0\0\0\x1E\0h\0k\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\
+    \0\0\xFF\xFF\xFF\xFF\0\0\0\x16\0\xFF\xFF\xFF\xFB\0\0\0.\0c\0u\0r\0v\0e\0v\0i\0\
+    e\0w\0e\0r\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0\
+    \x16\0\xFF\xFF\xFF\xFB\0\0\0.\0p\0y\0r\0p\0l\0c\0o\0n\0f\0i\0g\0 \0(\0m\0y\0_\0\
+    c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0\x16\0\xFF\xFF\xFF\xFB\0\0\0\
+    &\0l\0o\0c\0k\0b\0o\0x\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\
+    \xFF\0\0\0\x16\0\xFF\xFF\xFF\xFC\0\0\0\x83\0\0\x02\xB1\0\0\0_\x01\0\0\x14\xFA\0\
+    \0\0\x01\x01\0\0\0\x03\xFB\0\0\06\0n\0e\0t\0w\0o\0r\0k\0a\0n\0a\0l\0y\0z\0e\0\
+    r\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0`\0\xFF\
+    \xFF\xFF\xFB\0\0\0$\0s\0c\0o\0p\0e\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\
+    \0\0\0\xFF\xFF\xFF\xFF\0\0\0`\0\xFF\xFF\xFF\xFB\0\0\08\0s\0p\0e\0c\0t\0r\0u\0\
+    m\0a\0n\0a\0l\0y\0z\0e\0r\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\0\0\x05\
+    \xD9\0\0\0\x16\0\xFF\xFF\xFF\0\0\x05\xE8\0\0\0\0\0\0\0\x04\0\0\0\x04\0\0\0\b\0\
+    \0\0\b\xFC\0\0\0\0"
+  loglevel: info
+  modules:
+  - NetworkAnalyzer
+  - SpectrumAnalyzer
+  - CurveViewer
+  - PyrplConfig
+  - Lockbox
+  name: my_config
+  window_position:
+  - 0
+  - 38
+  - 1512
+  - 847
+redpitaya:
+  autostart: true
+  defaultport: 2222
+  delay: 0.05
+  dtbo_filename: fpga/red_pitaya.dtbo
+  filename: fpga/red_pitaya.bin
+  frequency_correction: 1.0
+  gui: true
+  hostname: rp-f0ac1b.local
+  leds_off: true
+  monitor_server_name: monitor_server
+  password: root
+  port: 2222
+  reloadfpga: auto
+  reloadserver: false
+  serverbinfilename: fpga.bit.bin
+  serverdirname: //opt//pyrpl//
+  serverdtbofilename: fpga.dtbo
+  silence_env: false
+  sshport: 22
+  timeout: 1
+  user: root
+  user_dir: /Users/brandon/Documents/Python Scripts/RedPitaya/pyrpl_data
+scope:
+  average: false
+  ch2_active: true
+  ch_math_active: false
+  curve_name: scope curve
+  input2: out2
+  rolling_mode: true
+  run_continuous: true
+  xy_mode: false
+  trace_average: 10
+networkanalyzer:
+  curve_name: networkanalyzer curve
+  run_continuous: false
+  output_direct: out1
+  input: in2
+  trace_average: 1
+  start_freq: 10000.0
+  logscale: true
+  auto_bandwidth: true
+  stop_freq: 2000000.0
+  points: 100
+  auto_amplitude: true
+  acbandwidth: 0
+  rbw: 37.94553157665012
+  amplitude: 0.09999847412109375
+spectrumanalyzer:
+  curve_name: spectrumanalyzer curve
+  acbandwidth: 0
+  run_continuous: false
+  display_input2_baseband: true
+  display_input1_baseband: true
+  display_cross_amplitude: true
+  span: 15624999.999999998
+  display_unit: dB(Vrms^2)
+  trace_average: 10
+  window: blackman
+  baseband: true
+lockbox:
+  sequence:
+  - outputs: {}
+asg0:
+  amplitude: 0.5
+  frequency: 3.026798367500305
+  output_direct: out1
+  trigger_source: immediately
+  waveform: sin
+asg1:
+  amplitude: 0.5
+  frequency: 10.011717677116394
+  offset: 0.0
+  output_direct: 'off'
+  start_phase: 10.000000074505806
+  trigger_source: 'off'
+  waveform: square
+pid1:
+  input: 'off'
+  output_direct: 'off'
+pid0:
+  differential_mode_enabled: false
+  i: -1.0005159917010866
+  input: in1
+  inputfilter:
+  - 0
+  - 0
+  - 0
+  - 0
+  max_voltage: 0.800048828125
+  min_voltage: -0.800048828125
+  output_direct: 'off'
+  p: -0.5
+  paused: false
+  setpoint: -0.010009765625
+  pause_gains: i
+iir:
+  loops: 3
+  'on': true
