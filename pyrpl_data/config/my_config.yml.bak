@@ -1,11 +1,11 @@
 pyrpl:
   background_color: ''
   dock_positions: "\0\0\0\xFF\0\0\0\0\xFD\0\0\0\x01\0\0\0\x02\0\0\x05\xE8\0\0\x03\
-    4\xFC\x01\0\0\0\x01\xFC\0\0\0\0\0\0\x05\xE8\0\0\0c\0\xFF\xFF\xFF\xFC\x02\0\0\0\
-    \x02\xFC\0\0\0\0\0\0\0\x82\0\0\0_\x01\0\0\x14\xFA\0\0\0\0\x01\0\0\0\n\xFB\0\0\0\
-    \ \0a\0s\0g\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\0\0\0\xFF\xFF\xFF\xFF\
-    \0\0\0`\0\xFF\xFF\xFF\xFB\0\0\0\x1E\0i\0q\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0\
-    )\0\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0\x16\0\xFF\xFF\xFF\xFB\0\0\0 \0p\0i\0d\0s\0 \0\
+    4\xFC\x01\0\0\0\x01\xFC\0\0\0\0\0\0\x05\xE8\0\0\0\x8D\0\xFF\xFF\xFF\xFC\x02\0\0\
+    \0\x02\xFC\0\0\0\0\0\0\x01F\0\0\0_\x01\0\0\x14\xFA\0\0\0\0\x01\0\0\0\n\xFB\0\0\
+    \0 \0a\0s\0g\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\0\0\0\xFF\xFF\xFF\xFF\
+    \0\0\0`\0\xFF\xFF\xFF\xFB\0\0\0 \0p\0i\0d\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0\
+    )\x01\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0`\0\xFF\xFF\xFF\xFB\0\0\0\x1E\0i\0q\0s\0 \0\
     (\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0`\0\xFF\xFF\xFF\
     \xFB\0\0\0 \0i\0i\0r\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\
     \xFF\0\0\0\x16\0\xFF\xFF\xFF\xFB\0\0\0\"\0t\0r\0i\0g\0s\0 \0(\0m\0y\0_\0c\0o\0\
@@ -17,9 +17,9 @@ pyrpl:
     \x16\0\xFF\xFF\xFF\xFB\0\0\0.\0p\0y\0r\0p\0l\0c\0o\0n\0f\0i\0g\0 \0(\0m\0y\0_\0\
     c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0\x16\0\xFF\xFF\xFF\xFB\0\0\0\
     &\0l\0o\0c\0k\0b\0o\0x\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\
-    \xFF\0\0\0\x16\0\xFF\xFF\xFF\xFC\0\0\0\x83\0\0\x02\xB1\0\0\0_\x01\0\0\x14\xFA\0\
-    \0\0\x01\x01\0\0\0\x03\xFB\0\0\06\0n\0e\0t\0w\0o\0r\0k\0a\0n\0a\0l\0y\0z\0e\0\
-    r\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0`\0\xFF\
+    \xFF\0\0\0\x16\0\xFF\xFF\xFF\xFC\0\0\x01G\0\0\x01\xED\0\0\0J\0\xFF\xFF\xFF\xFA\
+    \0\0\0\x01\x01\0\0\0\x03\xFB\0\0\06\0n\0e\0t\0w\0o\0r\0k\0a\0n\0a\0l\0y\0z\0e\0\
+    r\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0\x16\0\xFF\
     \xFF\xFF\xFB\0\0\0$\0s\0c\0o\0p\0e\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\
     \0\0\0\xFF\xFF\xFF\xFF\0\0\0`\0\xFF\xFF\xFF\xFB\0\0\08\0s\0p\0e\0c\0t\0r\0u\0\
     m\0a\0n\0a\0l\0y\0z\0e\0r\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\0\0\x05\
@@ -46,7 +46,7 @@ redpitaya:
   filename: fpga/red_pitaya.bin
   frequency_correction: 1.0
   gui: true
-  hostname: rp-f0ac1b.local
+  hostname: rp-f0c970.local
   leds_off: true
   monitor_server_name: monitor_server
   password: root
@@ -60,32 +60,39 @@ redpitaya:
   sshport: 22
   timeout: 1
   user: root
-  user_dir: /Users/brandon/Documents/Python Scripts/RedPitaya/pyrpl_data
+  user_dir: /Users/brandon/Documents/Python Scripts/Grok Laser/pyrpl_data
 scope:
   average: false
   ch2_active: true
   ch_math_active: false
   curve_name: scope curve
-  input2: out2
+  input2: iq0
   rolling_mode: true
   run_continuous: true
   xy_mode: false
-  trace_average: 10
+  trace_average: 1
+  input1: in1
+  ch1_active: true
+  duration: 0.536870912
+  trigger_source: 'off'
+  threshold: 0.02001953125
+  hysteresis: 0.010009765625
+  trigger_delay: 0.0
 networkanalyzer:
   curve_name: networkanalyzer curve
   run_continuous: false
   output_direct: out1
   input: in2
   trace_average: 1
-  start_freq: 10000.0
+  start_freq: 1000000.0
   logscale: true
-  auto_bandwidth: true
-  stop_freq: 2000000.0
-  points: 100
-  auto_amplitude: true
+  auto_bandwidth: false
+  stop_freq: 30000000.0
+  points: 1000
+  auto_amplitude: false
   acbandwidth: 0
   rbw: 37.94553157665012
-  amplitude: 0.09999847412109375
+  amplitude: 0.5
 spectrumanalyzer:
   curve_name: spectrumanalyzer curve
   acbandwidth: 0
@@ -101,39 +108,67 @@ spectrumanalyzer:
 lockbox:
   sequence:
   - outputs: {}
+  outputs:
+    output1:
+      assisted_design: true
+      i: 100.0
+      p: 0.0
 asg0:
-  amplitude: 0.5
-  frequency: 3.026798367500305
-  output_direct: out1
-  trigger_source: immediately
-  waveform: sin
-asg1:
-  amplitude: 0.5
+  amplitude: 0.010009765625
   frequency: 10.011717677116394
-  offset: 0.0
   output_direct: 'off'
-  start_phase: 10.000000074505806
-  trigger_source: 'off'
-  waveform: square
+  trigger_source: high
+  waveform: ramp
+  offset: 0.0
+asg1:
+  amplitude: 0.030029296875
+  frequency: 100.000761449337
+  offset: 0.02
+  output_direct: out1
+  start_phase: 0.0
+  trigger_source: high
+  waveform: sin
 pid1:
   input: 'off'
   output_direct: 'off'
 pid0:
   differential_mode_enabled: false
-  i: -1.0005159917010866
-  input: in1
+  i: 4.997947940025335
+  input: iq0
   inputfilter:
   - 0
   - 0
   - 0
   - 0
-  max_voltage: 0.800048828125
-  min_voltage: -0.800048828125
-  output_direct: 'off'
-  p: -0.5
+  max_voltage: 0.199951171875
+  min_voltage: -0.199951171875
+  output_direct: out2
+  p: 0.0
   paused: false
-  setpoint: -0.010009765625
-  pause_gains: i
+  setpoint: 0.0
+  pause_gains: 'off'
 iir:
   loops: 3
   'on': true
+iq0:
+  amplitude: 0.0019989013671875
+  frequency: 20000.006770715117
+  output_direct: out1
+  quadrature_factor: 50.0
+  phase: 0.0
+iq_states:
+  working:
+    acbandwidth: 1214.2929101024397
+    amplitude: 0.0019989013671875
+    bandwidth:
+    - 2428.6599415484384
+    - 2428.6599415484384
+    demodulation_at_2f: 'off'
+    frequency: 20000.006770715117
+    gain: 0.0
+    input: in1
+    modulation_at_2f: 'off'
+    output_direct: out1
+    output_signal: quadrature
+    phase: 0.0
+    quadrature_factor: 50.0

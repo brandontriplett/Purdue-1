@@ -14,7 +14,7 @@ from pyrpl import Pyrpl
 # 4. LAUNCH
 # We still pass user_dir just to be safe, but the environment variable 
 p = Pyrpl(config='my_config', 
-          hostname='rp-f0ac1b.local', 
+          hostname='rp-f0c970.local', 
           user_dir=local_user_dir)
 
 print(f"Success! PyRPL is contained. Data is at: {local_user_dir}")
@@ -30,7 +30,7 @@ local_user_dir = os.path.join(current_dir, "pyrpl_data")
 
 # Launch PyRPL and force it to use the local folder
 p = Pyrpl(config='my_config', 
-          hostname='rp-f0ac1b.local', #f0c970
+          hostname='rp-f0c970.local', #f0c970
           user_dir=local_user_dir)
 
 print(f"PyRPL is running. Data is being saved to: {local_user_dir}")
