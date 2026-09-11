@@ -225,19 +225,25 @@ def make_quick_scan_plan(
     stop_v: float,
     scan_time: float = 1.0,
 ) -> tuple[WaveformPlan, int]:
-    """1 s ramp, then a long 0 V tail.
+    """PD ramp. Long 0 V tail only for slow (~1 s) surveys.
 
-    The ASG table is much longer than the scope record. When the scope
-    finishes, the pointer is still in the 0 V tail, so wrapping back to
-    data[0] (the scan start) cannot happen yet. We then overwrite the
-    whole table with zeros.
+    A 0.15 s ramp in an 8 s table is ~2 % of the waveform. Scope/ASG lag
+    is ~50 ms (a third of that ramp), so the recorded window includes the
+    0 V tail and the plot looks like a wrap in the middle of the scan.
+    Short ramps use the error-scan recipe: fill one legal scope window
+    and hold at stop, not idle.
     """
     start_v = clip_voltage(start_v)
     stop_v = clip_voltage(stop_v)
     if scan_time <= 0:
         raise ValueError("scan_time must be positive.")
-    # Long ASG period so the 0 V tail outlives the scope acquisition.
-    _, asg_window = choose_scope_window(max(scan_time + 3.0, 8.0))
+    if scan_time < 0.5:
+        return make_error_scan_plan(start_v, stop_v, scan_time)
+    try:
+        _, asg_window = choose_scope_window(max(scan_time + 3.0, 8.0))
+    except ValueError:
+        # ~8 s is the longest legal scope window; no room for a 0 V tail.
+        return make_error_scan_plan(start_v, stop_v, scan_time)
     scope_decimation, _ = choose_scope_window(scan_time + 0.5)
     leftover = asg_window - scan_time
     segments = [
@@ -254,8 +260,13 @@ def scan_keep_slice(
     start_v: float,
     stop_v: float,
     end_guard: float = 0.04,
+    use_signal_jumps: bool = False,
 ):
-    """Slice of the monotonic ramp; drop wrap-around and the last few percent."""
+    """Slice of the monotonic ramp; drop wrap-around and the last few percent.
+
+    Cropping uses the *commanded voltage* axis. Photodiode spikes are real
+    spectrum (or noise), not wrap-around.
+    """
     voltage = np.asarray(voltage, dtype=float)
     signal = np.asarray(signal, dtype=float)
     n_all = len(voltage)
@@ -279,7 +290,10 @@ def scan_keep_slice(
     progressed = np.where(direction * (voltage - start_v) > 0.01 * abs(span))[0]
     start_i = int(progressed[0]) if len(progressed) else 0
 
-    bad = np.where(jump_back | past_stop | before_start | jump_signal)[0]
+    flags = jump_back | past_stop | before_start
+    if use_signal_jumps:
+        flags = flags | jump_signal
+    bad = np.where(flags)[0]
     bad = bad[bad > start_i + 5]
     end_i = int(bad[0]) if len(bad) else n_all
 
@@ -294,7 +308,21 @@ def scan_keep_slice(
         return slice(start_i, end_i)
     n = int(np.where(keep)[0][-1] + 1)
     n = max(n, 20)
-    return slice(start_i, start_i + n)
+    sl = slice(start_i, start_i + n)
+
+    kept_span = abs(float(voltage[sl.stop - 1]) - float(voltage[sl.start]))
+    too_short = (sl.stop - sl.start) < max(80, int(0.25 * n_all))
+    too_narrow = kept_span < 0.50 * abs(span)
+    if use_signal_jumps and (too_short or too_narrow):
+        return scan_keep_slice(
+            voltage,
+            signal,
+            start_v,
+            stop_v,
+            end_guard=end_guard,
+            use_signal_jumps=False,
+        )
+    return sl
 
 
 def crop_linear_scan(

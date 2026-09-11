@@ -151,7 +151,7 @@ def select_triplet(
 
 
 def choose_peak(triplet, choice=3):
-    """choice is 1-based left-to-right (1=small left, 3=tallest right)."""
+    """choice is 1-based left-to-right (1=left, 2=middle, 3=right)."""
     if not triplet:
         raise RuntimeError("No peak triplet to choose from.")
     if choice < 1 or choice > len(triplet):

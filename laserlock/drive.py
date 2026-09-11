@@ -35,6 +35,7 @@ from .waveform import (
     make_scan_plan,
     make_slew_plan,
     scan_keep_slice,
+    scope_duration,
 )
 
 IDLE_V = 0.0
@@ -233,8 +234,20 @@ class LaserDrive:
 
         return t, commanded, measured, played_duration, asg_lag, iq_trace
 
+    def _stop_scope(self) -> None:
+        scope = self.scope
+        try:
+            scope.rolling_mode = False
+        except Exception:
+            pass
+        try:
+            scope.stop()
+        except Exception:
+            pass
+
     def _arm_scope(self, decimation: int, record_iq: bool = False) -> None:
         scope = self.scope
+        self._stop_scope()
         scope.input1 = "in1"
         scope.input2 = "iq0" if record_iq else "off"
         scope.ch1_active = True
@@ -250,6 +263,22 @@ class LaserDrive:
             scope.trigger_delay = scope.duration / 2.0
         else:
             scope.trigger_delay = 0.0
+
+    def _warmup_scope(self) -> None:
+        """Discard the first acquisition after FPGA reload.
+
+        Saved configs often restore rolling_mode + run_continuous. The first
+        ``single()`` then returns a short leftover buffer (~40 samples) and
+        the survey crop looks empty.
+        """
+        self._arm_scope(decimation=64, record_iq=False)
+        try:
+            raw = self.scope.single(timeout=2.0)
+            n = 0 if raw is None else int(np.asarray(raw).size)
+            print(f"Scope warmup: {n} samples (discarded)")
+        except Exception as exc:
+            print(f"Scope warmup skipped ({exc})")
+        self._stop_scope()
 
     # ------------------------------------------------------------------
     # Public API
@@ -281,6 +310,7 @@ class LaserDrive:
         self._out_enabled = True
         self.current_v = self.idle_v
         print(f"OUT1 enabled, parked at {self.current_v:+.4f} V.")
+        self._warmup_scope()
 
     def hold_dc(self, voltage: float, verbose: bool = False) -> None:
         """Hold OUT1 at ``voltage`` using ASG offset.
@@ -411,7 +441,7 @@ class LaserDrive:
         """
         print()
         print("------------------------------------------------------------")
-        print("QUICK SCAN (jump / ramp / release)")
+        print("SURVEY SCAN (jump / ramp / release to 0 V)")
         print("------------------------------------------------------------")
         self.jump_to(start_v)
         time.sleep(pause_s)
@@ -423,7 +453,11 @@ class LaserDrive:
         )
         print(f"Scan:      {start_v:+.6f} -> {stop_v:+.6f} V")
         print(f"Scan time: {scan_time:.3f} s")
-        print(f"Window:    {plan.duration:.3f} s  (decimation {decimation})")
+        print(
+            f"ASG period: {plan.duration:.3f} s   "
+            f"scope window {scope_duration(decimation):.3f} s  "
+            f"(decimation {decimation})"
+        )
         print(f"Pause:     {pause_s:.3f} s")
 
         t, commanded, measured, played, asg_lag, _iq = self._play(
@@ -452,6 +486,7 @@ class LaserDrive:
         if not np.any(mask):
             raise RuntimeError("Scan time window is empty in the scope trace.")
 
+        n_raw = int(np.count_nonzero(mask))
         voltage, photodiode = crop_linear_scan(
             commanded[mask],
             measured[mask],
@@ -466,7 +501,31 @@ class LaserDrive:
             "scan_t0": scan_t0,
             "scan_t1": scan_t1,
         }
-        print(f"Scan samples: {len(voltage)}")
+        v0 = float(voltage[0]) if len(voltage) else float("nan")
+        v1 = float(voltage[-1]) if len(voltage) else float("nan")
+        kept_span = abs(v1 - v0)
+        want_span = abs(float(stop_v) - float(start_v))
+        print(
+            f"Scan samples: {len(voltage)}  (raw window {n_raw})"
+        )
+        print(
+            f"Kept voltage: {v0:+.6f} -> {v1:+.6f} V  "
+            f"(requested {float(start_v):+.6f} -> {float(stop_v):+.6f} V)"
+        )
+        if want_span > 1e-6 and kept_span < 0.80 * want_span:
+            print(
+                f"WARNING: kept span {kept_span:.4f} V is only "
+                f"{100.0 * kept_span / want_span:.0f}% of the requested "
+                f"{want_span:.4f} V. The plot x-axis will not match the "
+                "survey start/stop you set."
+            )
+        if len(voltage) < 200:
+            raise RuntimeError(
+                f"Survey recording is too short ({len(voltage)} samples, "
+                f"raw window {n_raw}). After an FPGA reload the scope is "
+                "often still in rolling mode. Re-run connect, or run the "
+                "survey cell again."
+            )
         print(f"Now holding:  {self.current_v:+.6f} V")
         return voltage, photodiode, plan, full
 
@@ -476,27 +535,33 @@ class LaserDrive:
         stop_v: float,
         scan_time: float = 0.5,
         pause_s: float = 0.05,
+        name: str = "ERROR SCAN",
     ):
         """Analog ramp with dither already on; record IN1 and iq0.
 
-        Freeze at stop so the lock point can be applied immediately.
-        Fast enough (like the coarse scan) that thermal drift does not
-        shear the S-curve.
+        After the ramp, jump back to ``start_v`` immediately so we do not
+        sit at the endpoint. Later park approaches the lock from start.
         """
         print()
         print("------------------------------------------------------------")
-        print("FAST ERROR SCAN (analog ramp, record IN1 + iq0)")
+        print(f"{name} (analog ramp, record IN1 + iq0)")
         print("------------------------------------------------------------")
         self.hold_dc(start_v, verbose=True)
+        print(f"Sitting {pause_s:.3f} s at start...")
         time.sleep(pause_s)
         plan, decimation = make_error_scan_plan(start_v, stop_v, scan_time)
         print(f"Scan:      {start_v:+.6f} -> {stop_v:+.6f} V")
         print(f"Scan time: {scan_time:.3f} s")
+        print(f"Sit start: {pause_s:.3f} s")
         print(f"Window:    {plan.duration:.3f} s  (decimation {decimation})")
 
         t, commanded, measured, played, asg_lag, iq_trace = self._play(
             plan, record=True, decimation=decimation, freeze=True, record_iq=True
         )
+        # Do not linger at the stop voltage (hysteresis / drift). Jump back
+        # to start before any Python plotting or lock-point math.
+        self.hold_dc(start_v, verbose=True)
+        print(f"Returned to start {start_v:+.6f} V (low-V side; do not sit at the high endpoint)")
         if t is None or measured is None or commanded is None or iq_trace is None:
             raise RuntimeError("Scope returned no PD/error data.")
 
@@ -514,23 +579,177 @@ class LaserDrive:
         if not np.any(mask):
             raise RuntimeError("Scan time window is empty in the scope trace.")
 
+        n_raw = int(np.count_nonzero(mask))
         sl = scan_keep_slice(
             commanded[mask], measured[mask], start_v, stop_v, end_guard=0.03
         )
         voltage = commanded[mask][sl]
         photodiode = measured[mask][sl]
         error = iq_trace[mask][sl]
-        print(f"Scan samples: {len(voltage)}")
+        v0 = float(voltage[0]) if len(voltage) else float("nan")
+        v1 = float(voltage[-1]) if len(voltage) else float("nan")
+        print(f"Scan samples: {len(voltage)}  (raw window {n_raw})")
+        print(
+            f"Kept voltage: {v0:+.6f} -> {v1:+.6f} V  "
+            f"(requested {float(start_v):+.6f} -> {float(stop_v):+.6f} V)"
+        )
+        if len(voltage) < 80:
+            raise RuntimeError(
+                f"Error-scan recording is too short ({len(voltage)} samples, "
+                f"raw window {n_raw}). Re-run connect (FPGA reload) and the "
+                "scan cell."
+            )
         print(f"Now holding:  {self.current_v:+.6f} V")
         return voltage, photodiode, error, plan
 
+    def _out1_mean(self, t=0.02):
+        sampler = getattr(self.rp, "sampler", None)
+        if sampler is None:
+            return None
+        mean, _std, mx, mn = sampler.stats("out1", t=t)
+        return float(mean), float(mx) - float(mn)
+
+    def _print_out1_routes(self) -> None:
+        for name in ("asg0", "asg1", "pid0", "pid1", "pid2", "iq0", "iq1", "iq2"):
+            mod = getattr(self.rp, name, None)
+            if mod is None:
+                continue
+            route = getattr(mod, "output_direct", "?")
+            extra = ""
+            if name.startswith("pid"):
+                extra = f"  p={getattr(mod, 'p', '?')}  i={getattr(mod, 'i', '?')}  ival={getattr(mod, 'ival', 0):+.4f}"
+            elif name.startswith("iq"):
+                extra = f"  amp={getattr(mod, 'amplitude', 0):.4f}"
+            print(f"  {name}.output_direct={route}{extra}")
+
+    def start_aom(self, frequency_hz: float, amplitude_v: float) -> None:
+        """Continuous sine on OUT2 via asg1. Does not touch asg0 / OUT1.
+
+        Amplitude is peak volts (PyRPL), 0 to 1 V. Leave running until
+        ``shutdown()`` / ``stop_aom()``.
+        """
+        freq = float(frequency_hz)
+        amp = float(amplitude_v)
+        if freq <= 0:
+            raise ValueError("AOM frequency must be positive.")
+        if amp < 0 or amp > DAC_MAX + 1e-12:
+            raise ValueError(
+                f"AOM amplitude {amp} V is outside 0 to {DAC_MAX} V peak."
+            )
+        asg1 = getattr(self.rp, "asg1", None)
+        if asg1 is None:
+            raise RuntimeError("This Red Pitaya has no asg1.")
+        asg1.setup(
+            waveform="sin",
+            frequency=freq,
+            amplitude=amp,
+            offset=0.0,
+            trigger_source="immediately",
+            output_direct="out2",
+        )
+        actual = float(getattr(asg1, "frequency", freq) or freq)
+        routed = str(getattr(asg1, "output_direct", "?"))
+        print(
+            f"AOM OUT2: {actual / 1e6:.6f} MHz  "
+            f"(requested {freq / 1e6:.6f} MHz)  "
+            f"amp {float(getattr(asg1, 'amplitude', amp)):.4f} V peak  "
+            f"output_direct={routed}"
+        )
+        if routed != "out2":
+            print("WARNING: asg1 is not routed to out2.")
+
+    def stop_aom(self) -> None:
+        """Silence asg1 and disconnect OUT2."""
+        asg1 = getattr(self.rp, "asg1", None)
+        if asg1 is None:
+            return
+        try:
+            asg1.amplitude = 0.0
+            asg1.output_direct = "off"
+            print("AOM OUT2 off.")
+        except Exception as exc:
+            print(f"AOM OUT2 stop failed ({exc})")
+
     def shutdown(self, slew_time: float = 1.5) -> None:
-        """Slew to idle, then disconnect OUT1."""
+        """Zero PID/IQ, slew ASG to idle, then disconnect OUT1 and OUT2.
+
+        OUT1 is the sum of every module routed to it. If PID is still on
+        (often railed at ``min_voltage`` = −0.20 V) then disconnecting the
+        ASG leaves the pin at −200 mV. Silence feedback *before* the slew.
+        """
+        from .connection import silence_feedback
+
+        print("Shutdown: disconnect PID/IQ from OUT1, then slew ASG to idle.")
+        silence_feedback(self.rp)
+        self.stop_aom()
         if self._out_enabled:
             try:
                 self.slew_to(self.idle_v, duration=slew_time)
             except Exception as exc:
-                print(f"Shutdown slew failed ({exc}); disconnecting anyway.")
+                print(f"Shutdown slew failed ({exc}); holding idle instead.")
+                try:
+                    self.hold_dc(self.idle_v, verbose=True)
+                except Exception:
+                    pass
+        else:
+            try:
+                self.hold_dc(self.idle_v, verbose=True)
+                self.asg.output_direct = "out1"
+                self._out_enabled = True
+            except Exception:
+                pass
+
+        before = None
+        try:
+            before = self._out1_mean()
+        except Exception:
+            pass
+        if before is not None:
+            print(
+                f"OUT1 after slew (ASG still connected): "
+                f"{1e3 * before[0]:+.1f} mV  ptp {1e3 * before[1]:.1f} mV"
+            )
+
         self.asg.output_direct = "off"
         self._out_enabled = False
-        print("OUT1 disconnected after slew to idle.")
+        time.sleep(0.02)
+
+        after = None
+        try:
+            after = self._out1_mean()
+        except Exception:
+            pass
+        if after is not None:
+            print(
+                f"OUT1 after ASG disconnect: "
+                f"{1e3 * after[0]:+.1f} mV  ptp {1e3 * after[1]:.1f} mV"
+            )
+            # analog mixer "off" is not always 0 V; hold idle on the pin
+            if abs(after[0]) > 0.020:
+                print(
+                    "WARNING: OUT1 is not near 0 V with everything disconnected. "
+                    "Re-enabling ASG at idle so the pin is driven to 0 V."
+                )
+                self.hold_dc(self.idle_v, verbose=True)
+                self.asg.output_direct = "out1"
+                self._out_enabled = True
+                held = None
+                try:
+                    held = self._out1_mean()
+                except Exception:
+                    pass
+                if held is not None:
+                    print(
+                        f"OUT1 holding idle: "
+                        f"{1e3 * held[0]:+.1f} mV  ptp {1e3 * held[1]:.1f} mV"
+                    )
+        print("OUT1 routes:")
+        self._print_out1_routes()
+        print(
+            "Shutdown done. "
+            + (
+                f"ASG holding idle at {self.current_v:+.6f} V."
+                if self._out_enabled
+                else "ASG disconnected."
+            )
+        )

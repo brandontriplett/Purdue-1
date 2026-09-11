@@ -34,6 +34,13 @@ def test_peak_choice_selects_left_peak():
     assert result["target"]["voltage"] == volts[0]
 
 
+def test_peak_choice_selects_middle_peak():
+    x, y = _synthetic_well()
+    result = analyze_spectrum(x, y, peak_choice=2)
+    volts = [p["voltage"] for p in result["triplet"]]
+    assert result["target"]["voltage"] == volts[1]
+
+
 def test_fine_scan_without_full_triplet():
     """A tight window around the tallest line: no triplet, still lockable."""
     x, y = _synthetic_well()

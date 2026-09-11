@@ -2,7 +2,7 @@ pyrpl:
   background_color: ''
   dock_positions: "\0\0\0\xFF\0\0\0\0\xFD\0\0\0\x01\0\0\0\x02\0\0\x05\xE8\0\0\x03\
     4\xFC\x01\0\0\0\x01\xFC\0\0\0\0\0\0\x05\xE8\0\0\0\x8D\0\xFF\xFF\xFF\xFC\x02\0\0\
-    \0\x02\xFC\0\0\0\0\0\0\x01F\0\0\0_\x01\0\0\x14\xFA\0\0\0\0\x01\0\0\0\n\xFB\0\0\
+    \0\x02\xFC\0\0\0\0\0\0\x01\a\0\0\0_\x01\0\0\x14\xFA\0\0\0\0\x01\0\0\0\n\xFB\0\0\
     \0 \0a\0s\0g\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\0\0\0\xFF\xFF\xFF\xFF\
     \0\0\0`\0\xFF\xFF\xFF\xFB\0\0\0 \0p\0i\0d\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0\
     )\x01\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0`\0\xFF\xFF\xFF\xFB\0\0\0\x1E\0i\0q\0s\0 \0\
@@ -17,8 +17,8 @@ pyrpl:
     \x16\0\xFF\xFF\xFF\xFB\0\0\0.\0p\0y\0r\0p\0l\0c\0o\0n\0f\0i\0g\0 \0(\0m\0y\0_\0\
     c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0\x16\0\xFF\xFF\xFF\xFB\0\0\0\
     &\0l\0o\0c\0k\0b\0o\0x\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\
-    \xFF\0\0\0\x16\0\xFF\xFF\xFF\xFC\0\0\x01G\0\0\x01\xED\0\0\0J\0\xFF\xFF\xFF\xFA\
-    \0\0\0\x01\x01\0\0\0\x03\xFB\0\0\06\0n\0e\0t\0w\0o\0r\0k\0a\0n\0a\0l\0y\0z\0e\0\
+    \xFF\0\0\0\x16\0\xFF\xFF\xFF\xFC\0\0\x01\b\0\0\x02,\0\0\0J\0\xFF\xFF\xFF\xFA\0\
+    \0\0\x01\x01\0\0\0\x03\xFB\0\0\06\0n\0e\0t\0w\0o\0r\0k\0a\0n\0a\0l\0y\0z\0e\0\
     r\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\0\0\0\0\0\xFF\xFF\xFF\xFF\0\0\0\x16\0\xFF\
     \xFF\xFF\xFB\0\0\0$\0s\0c\0o\0p\0e\0s\0 \0(\0m\0y\0_\0c\0o\0n\0f\0i\0g\0)\x01\0\
     \0\0\0\xFF\xFF\xFF\xFF\0\0\0`\0\xFF\xFF\xFF\xFB\0\0\08\0s\0p\0e\0c\0t\0r\0u\0\
@@ -68,7 +68,7 @@ scope:
   curve_name: scope curve
   input2: iq0
   rolling_mode: true
-  run_continuous: true
+  run_continuous: false
   xy_mode: false
   trace_average: 1
   input1: in1
@@ -114,9 +114,9 @@ lockbox:
       i: 100.0
       p: 0.0
 asg0:
-  amplitude: 0.010009765625
-  frequency: 10.011717677116394
-  output_direct: 'off'
+  amplitude: 0.5
+  frequency: 15.017576515674591
+  output_direct: out1
   trigger_source: high
   waveform: ramp
   offset: 0.0

@@ -1,0 +1,538 @@
+================================================================================
+Red Pitaya / PyRPL automatic lock for a diode laser (MOT spectroscopy)
+================================================================================
+
+This file describes the repository as it actually works: hardware, software,
+the spectroscopy, the lock-in method, why those choices were made, and how to
+run a lock. It is written for someone who will sit at the table with the
+Red Pitaya, the Koheron CTL200, and the Master notebook.
+
+
+--------------------------------------------------------------------------------
+1. WHAT THIS PROJECT IS
+--------------------------------------------------------------------------------
+
+The goal is to hold a diode laser on a chosen sub-Doppler absorption line
+(peak 2 of a three-line cluster) so a magneto-optical trap (MOT) can run
+without you babysitting a piezo knob.
+
+The “brain” on the table is a Red Pitaya STEMlab running the PyRPL FPGA
+image. The Python in this repo does not implement a software PID that
+pushes samples over the network. It:
+
+  1. Connects to the board and flashes the PyRPL FPGA if needed.
+  2. Scans the laser (OUT1) while reading the photodiode (IN1).
+  3. Finds the three-line cluster on the photodiode.
+  4. Turns on a small RF dither, records the lock-in error (iq0) while
+     scanning, and computes a lock voltage from that finished error
+     trace (Linien-style mid-height of the S-curve).
+  5. Parks analog OUT1 at that voltage (plus an optional millivolt
+     correction).
+  6. Closes an analog PI loop on the FPGA (pid0 summing onto OUT1).
+
+Notebooks are the test UI. Hardware and math live in laserlock/. A later
+headless script is supposed to import the same API; that has not been
+built as the daily driver.
+
+What this project is not:
+
+  - It is not Linien. Do not flash Linien onto rp-f0c970.local.
+  - It does not turn the diode on or off. That is Laser_Power.ipynb
+    (Koheron CTL200 over SSH UART).
+  - It does not implement an OUT1→IN2 analog loopback in the lock path.
+    Loopback was a dedicated troubleshooting notebook used to learn the
+    sign of I.
+
+
+--------------------------------------------------------------------------------
+2. HARDWARE
+--------------------------------------------------------------------------------
+
+2.1 Red Pitaya (rp-f0c970.local)
+
+  SSH user/password: root / root
+  PyRPL monitor port: 2222 (see pyrpl_data/config/my_config.yml)
+  Analog I/O used here:
+    OUT1  laser current-modulation / piezo-style actuator  (±1 V hardware)
+    OUT2  AOM sine (asg1), independent of the lock
+    IN1   photodiode (absorption)
+  FPGA: PyRPL image (red_pitaya.bin / red_pitaya.dtbo). The stock Red
+  Pitaya FPGA will not expose asg0/iq0/pid0 the way this code expects.
+
+  PyRPL DSP summing on OUT1:
+    asg0  DC park / scan ramp (the “command”)
+    iq0   small sine dither (and demodulation of IN1)
+    pid0  analog correction once the lock is closed
+  These three add at the DAC. Watch the analog pin “out1” and pid0.ival,
+  not asg0, when the PID is on. asg0 can sit still while pid0 moves OUT1.
+
+  If mDNS fails (Errno 8: nodename nor servname provided), the Mac cannot
+  resolve rp-f0c970.local. That is network/DNS, not a Koheron bug. Ping
+  the name, or put the board’s IP in HOSTNAME.
+
+2.2 Koheron CTL200 (diode + TEC)
+
+  Talked to over the Red Pitaya’s UART /dev/ttyPS1 at 115200 baud, via
+  SSH from this Mac (paramiko, password root). laserlock/koheron.py does
+  not import pyrpl and does not touch the FPGA.
+
+  Typical lab settings (Laser_Power.ipynb):
+    ilaser  250 mA   (required; do not leave a 200 mA default)
+    ilmax   255 mA
+    rtset   ~10420 Ω (thermistor setpoint; lower Ω is hotter on this head)
+    pgain / igain / dgain  0.001 / 0.0005 / 0.0001
+    tprot   1
+  on() never waits. Warmup is optional wait_stable(). Closing the Python
+  client does not turn lason off.
+
+  A comment in the power notebook says UART control should eventually
+  move to a Raspberry Pi. Until then, this Mac SSHes to the Pitaya.
+
+2.3 Photodiode and AOM
+
+  IN1 is the saturated-absorption / probe photodiode.
+  OUT2 / asg1 drives an AOM at (115.325/4) MHz, amplitude 1.0 V peak.
+  AOM is started in Master and stays on until Shutdown. drive.shutdown()
+  stops it. Hunt/Hold-Scan study notebooks were told not to add AOM.
+
+2.4 Actuator polarity (why voltage is not “frequency”)
+
+  OUT1 is a current-modulation (or similar) input on the laser. Higher
+  OUT1 voltage is not guaranteed to be “bluer.” The code treats voltage
+  as the scan axis. “Uphill” always means low V → high V on OUT1.
+  Hysteresis is large (tens of millivolts between uphill and downhill),
+  so a voltage from an uphill scan is not the same physical frequency
+  as the same number approached from above.
+
+
+--------------------------------------------------------------------------------
+3. SOFTWARE LAYOUT
+--------------------------------------------------------------------------------
+
+Repository root (this folder):
+
+  Automatic_Laser_Lock_PyRPL_Master.ipynb
+      Daily lock. Connect → coarse PD survey → triplet error scan →
+      one fine error scan → analog approach to lock → PI.
+  Laser_Power.ipynb
+      Diode on/off, RTSET, status. No FPGA.
+  start_pyrpl.py
+      Optional PyRPL GUI with FPGA reload. Do not run at the same time
+      as Master.
+  laserlock/
+      Python package. Notebooks import from here.
+  tests/
+      Unit tests for peaks, lockpoint, waveforms, catch/hunt, Koheron
+      parsing, PID helpers. No live board required.
+  pyrpl_data/config/my_config.yml
+      PyRPL config (hostname, FPGA files, module layout).
+  archived/
+      Old notebooks (Hunt, Hold-Scan study, PID loopback, Linien tree,
+      troubleshooting). Nothing in the live lock imports this folder.
+
+laserlock modules:
+
+  connection.py   Pyrpl() connect, FPGA overlay check, silence PID/IQ
+  drive.py        LaserDrive: one-shot ASG tables on OUT1, hold_dc, AOM
+  waveform.py     16384-point tables, scan/slew plans, ±1 V clip
+  peaks.py        Doppler background removal, triplet 1/2/3 left-to-right
+  lockin.py       IQ dither, uphill error sweeps, park, apply_pid
+  lockpoint.py    Linien mid-height lock point + millivolt correction
+  koheron.py      CTL200 over SSH UART
+  catch.py        Live S-curve detector (Hunt path)
+  hunt.py         Downhill hold_dc walk, skip peak 3, catch peak 2
+
+Lazy imports: “from laserlock import KoheronLaser” does not load pyrpl.
+Importing LaserDrive/connect does.
+
+
+--------------------------------------------------------------------------------
+4. HARD RULES (WHY THE CODE LOOKS PARANOID)
+--------------------------------------------------------------------------------
+
+These were learned the hard way and are still in force unless you
+consciously override them.
+
+  1. Little time far from 0 V. Idle is 0 V. Do not sit at a high scan
+     endpoint while you look at a plot. After every scan, jump back to
+     that scan’s start.
+  2. Do not flash Linien onto this Pitaya.
+  3. Do not call asg.setup() or asg.trigger_source = ... after OUT1 is
+     live. Both regenerate the waveform RAM; setup() zeros the DAC.
+     LaserDrive pokes trigger bits in the control register instead.
+  4. Hold DC with amplitude=0, offset=voltage. A stopped ASG state
+     machine ignores waveform RAM; offset still drives the DAC.
+  5. FPGA PID stays on after a notebook cell ends until open_pid /
+     disengage_lock / shutdown. Do not run Open PID after a good lock
+     unless you mean to drop the loop.
+  6. Watch out1 and ival, not asg0, when PID is engaged.
+  7. IQ 180° and the sign of I are the same loop-sign flip. Do not flip
+     both.
+  8. Notebook is the test UI. Autonomous/headless is later.
+
+
+--------------------------------------------------------------------------------
+5. TUTORIAL — WHAT WE ARE LOCKING TO
+--------------------------------------------------------------------------------
+
+5.1 Why lock a laser at all
+
+  A MOT needs the laser a few linewidths (or less) from a cycling
+  transition, and it needs that detuning to stay put. Diode lasers
+  wander with temperature, current, and air. An unlocked laser walks
+  off the MOT in seconds to minutes. A lock measures “how far am I from
+  the line?” and continuously corrects the actuator (here: OUT1).
+
+5.2 Saturated absorption and the three-line cluster
+
+  The photodiode sees a broad Doppler well (atoms with a thermal
+  velocity distribution) and, on top of it, three narrow sub-Doppler
+  features. Those features are the saturated-absorption / crossover
+  structure of the cycling manifold.
+
+  In this lab the cluster is labeled left to right on the voltage axis:
+
+    Peak 1  smaller
+    Peak 2  taller — MOT lock target (PEAK_CHOICE = 2)
+    Peak 3  often tallest in raw PD, skipped as a lock target
+
+  peaks.py does not identify hyperfine quantum numbers. It strips the
+  Doppler envelope, finds peaks, and takes the three-line cluster
+  around the strongest line. You choose 1, 2, or 3 by left-to-right
+  index, not by “whichever is tallest.”
+
+  Why peak 2: that is the line that actually lights the MOT in this
+  setup. Peak 3 is a neighboring (or crossover) feature. Locking to
+  the wrong zero can null the error signal while the photodiode drops
+  (you are on a dim wing or a different line). The PID cell warns:
+  if error goes to 0 and PD drops, it is a lock-point problem, not a
+  gain problem.
+
+5.3 Why a DC photodiode is not an error signal
+
+  Absorption vs frequency is a hill (even function around line center).
+  At the top, d(PD)/dV ≈ 0, so a tiny frequency walk does not change
+  the photodiode much, and you cannot tell left from right. A lock
+  needs an odd discriminator: negative on one side of center, positive
+  on the other, zero at the lock point. That odd curve is the “S-curve”
+  or error signal.
+
+5.4 Wavelength-modulation / lock-in (what we use)
+
+  Method: add a small, fast sine to the laser (dither) and demodulate
+  the photodiode at that frequency. For a small modulation, the
+  in-phase demodulated signal is proportional to the derivative of
+  the absorption vs the scan axis. The derivative of a peaked line is
+  an odd S-curve: zero at the peak, opposite signs on the two wings.
+
+  This is standard laser locking (Pound–Drever–Hall is the cavity
+  analog; here the “discriminator” is the atomic line itself).
+
+  Implementation on the Pitaya (iq0):
+
+    frequency     20 kHz     (Master; well above 1/f and below AOM)
+    amplitude     2–3 mV     (small vs the ~few–10 mV linewidth in V)
+    input         IN1
+    output_direct OUT1       (dither sums with asg0)
+    output_signal quadrature
+    bandwidth     2 kHz      (demod low-pass)
+    acbandwidth   1 kHz
+    quadrature_factor  10
+    phase         0° default; 180° flips the S-curve sign
+
+  Why dither on OUT1 rather than a separate modulator: the same
+  actuator that scans also dithers. The FPGA sums asg0 (slow) + iq0
+  (20 kHz) + pid0 (correction).
+
+  Why 20 kHz: fast enough that the PI loop can be a few hertz without
+  fighting the demod filter; slow enough that the laser current
+  modulation still moves the frequency. 2 mV is small compared with
+  a typical sub-Doppler feature on this voltage axis, so the S-curve
+  is approximately the first derivative, not a washed-out Bessel mess.
+
+5.5 Linien mid-height lock point (why not “error = 0” on a live sample)
+
+  Doppler background and residual AM make the S-curve sit on a DC
+  offset. The true line center is not where the raw error crosses
+  zero; it is halfway in height between the positive and negative
+  lobes (the two extrema of the S-curve).
+
+  get_lock_point() (lockpoint.py), ported from Linien’s simple
+  autolock:
+
+    In a window that contains both extrema:
+      mean_signal = 0.5 * (min_lobe + max_lobe)
+      lock at the sample where (error − mean_signal) is closest to 0
+
+  That is the lock voltage. Fine scans crop to one line and use the
+  whole trace (lock_point_from_single_line). Triplet scans pick the
+  S-curve nearest the survey peak (hint_voltage) so we do not glue
+  the max of peak 3 to the min of peak 2 (a real failure mode when
+  the valley between lines is wide and flat).
+
+  Why a finished trace, not a live catch, in Master: a recorded uphill
+  sweep has a known voltage axis, both lobes, and no “I crossed a
+  valley zero between two lines” accident. Hunt tried live catching
+  and repeatedly froze on the min between peak 3 and peak 2.
+
+5.6 Why scans are uphill, then jump back to start
+
+  Piezo / current actuators hysteresis: the frequency at +0.20 V
+  coming from below is not the frequency at +0.20 V coming from above.
+  All Master error scans are low V → high V. After the ramp, OUT1
+  jumps back to that scan’s start immediately (no sit at the high
+  end — heat / current). The lock is then approached from the same
+  start, at the same V/s as the scan, so the park is on the same
+  hysteresis branch as the fit.
+
+  Coarse PD survey is also a ramp; its voltages are a map, not a
+  promise that a downhill walk will see the same numbers (Hunt
+  learned ~70 mV of hysteresis the hard way).
+
+5.7 Why analog PI on the FPGA, and why I is negative
+
+  A software PID over Ethernet cannot hold an atomic line. pid0 runs
+  on the FPGA, input = iq0, setpoint = 0, output summed on OUT1.
+
+  PyRPL error convention:
+    e = input − setpoint
+  For a plant that increases photodiode-derived error when OUT1
+  increases, the stabilizing I is negative. Analog loopback
+  (OUT1→IN1 BNC, dedicated notebook) showed:
+
+    I = +3 Hz   rails
+    I = −3 Hz, P = 0, inputfilter all zeros   regulates and holds
+
+  So Master uses P = 0, I = −3 Hz, rails ±0.20 V (correction),
+  hardware OUT1 still ±1 V. Integrator memory ival can wind up past
+  the analog rails (±4 V class); open_pid zeros ival.
+
+  inputfilter = [0,0,0,0] because a DC block on the PID input kills
+  the lock (the S-curve is a DC error once you are parked).
+
+  Phase 180° and I → +I are the same sign flip. Use one.
+
+  P = 0 is intentional for this plant: the loopback winner was pure I.
+  You can add a little P later if the MOT wants it; do not start there.
+
+5.8 Lockpoint correction
+
+  LOCKPOINT_CORRECTION_V is added to the fitted voltage before the
+  analog approach. Fit 0.232 V, correction +0.005 → park 0.237 V.
+  Use this when the MOT wants a few millivolts off the S-curve center
+  (red detuning, etc.). Default 0.0. Gray line on the fine plot is
+  the fit; black is the park.
+
+
+--------------------------------------------------------------------------------
+6. MASTER NOTEBOOK SEQUENCE (WHAT TO RUN)
+--------------------------------------------------------------------------------
+
+Prerequisites:
+  - Pitaya reachable (rp-f0c970.local or IP)
+  - Diode already on via Laser_Power.ipynb (250 mA, sensible rtset)
+  - Photodiode on IN1, lock actuator on OUT1, AOM on OUT2 if used
+
+Cells, in order:
+
+  1. Imports + User settings
+       HOSTNAME, scan windows, PEAK_CHOICE=2, dither, PID, correction.
+  2. Connect
+       Pyrpl(..., reloadfpga=True) ~10 s. silence_other_outputs so a
+       saved config cannot leave pid0 on OUT1. LaserDrive.enable_idle()
+       at 0 V.
+  3. AOM
+       asg1 sine on OUT2. Leave it. Shutdown stops it.
+  4. Coarse scan
+       Photodiode only, COARSE_START_V → COARSE_STOP_V, sit
+       COARSE_SETTLE_S at start. Find triplet. Retry up to
+       MAX_COARSE_RETRIES.
+  5. Peaks
+       Print lines 1/2/3. Target = PEAK_CHOICE.
+  6. Triplet
+       Dither on. Uphill error sweep covering all three lines.
+       Sit TRIPLET_SETTLE_S at low start (thermal). Jump back to start.
+       lock_point_from_trace with hint = survey peak 2 → lock_guess.
+  7. Fine scan
+       Uphill window around lock_guess (FINE_BELOW_V / FINE_ABOVE_V).
+       Fit one S-curve, add LOCKPOINT_CORRECTION_V, analog-ramp start
+       → park at the same V/s as the scan. Plot after the park.
+  8. PID
+       apply immediately (no slow gain ramp in the cell you re-run).
+       P=0, I=−3 Hz. FPGA stays on. Re-run to change P/I/phase.
+       Open PID drops the loop and leaves the ASG park.
+  9. Shutdown (often commented)
+       Must zero OUT1. Do this when you are done, not after a lock
+       you want to keep.
+
+Do not run Open PID after a good lock. Do not run start_pyrpl.py at
+the same time (two clients fighting the FPGA).
+
+
+--------------------------------------------------------------------------------
+7. HOW THE SCANNER (LaserDrive) WORKS
+--------------------------------------------------------------------------------
+
+The ASG table is 16384 samples. With amplitude=1 and offset=0, table
+values are volts. Playback duration is 1/frequency (FrequencyRegister
+snaps to a nearby legal rate).
+
+A one-shot scan:
+
+  1. Hold current voltage via offset, amplitude=0 (DAC does not jump
+     while RAM is loaded).
+  2. Upload a table whose first sample equals the hold voltage.
+  3. Arm the scope (IN1, optionally iq0), trigger “immediately”
+     (asg0 trigger would call setup() and wipe the table).
+  4. Switch to amplitude=1, offset=0, fire the state machine once.
+  5. Freeze by hold_dc at the end voltage before resetting the pointer.
+
+Voltage axis for plots is reconstructed from the table vs time, not
+from hoping the scope X is in volts.
+
+Idle 0 V after a survey so the laser is not left at high current
+while you stare at a figure.
+
+
+--------------------------------------------------------------------------------
+8. PEAK FINDING (peaks.py)
+--------------------------------------------------------------------------------
+
+  1. Median despike.
+  2. Subtract Doppler envelope: wide Savitzky–Golay on a full well;
+     a straight line on a narrow fine window (a 2nd-order smoother
+     over 32% of a short window would eat the line itself).
+  3. find_peaks on the residual, quadratic refine.
+  4. Triplet: cluster within CLUSTER_WINDOW_V of the strongest line,
+     keep three, sort by voltage, label 1/2/3 left to right.
+
+PEAK_CHOICE is that label. Changing it to 1 or 3 is supported; the
+MOT target in this lab is 2.
+
+
+--------------------------------------------------------------------------------
+9. HUNT PATH (ARCHIVED — WHY IT EXISTS AND WHY MASTER WON)
+--------------------------------------------------------------------------------
+
+Automatic_Laser_Lock_Hunt.ipynb (now under archived/) walked OUT1
+downhill with hold_dc steps and a live S-curve detector: skip peak 3,
+freeze when peak 2’s error went past zero, step back, engage PID.
+
+It taught several real facts:
+
+  - Downhill voltages are not coarse-survey voltages (hysteresis).
+  - The error always crosses zero in the valley between two lines.
+    That zero is a PD minimum. Locking there looks “locked” (error~0)
+    with a dim photodiode.
+  - A feature ~70 mV above survey peak 3 was live peak 3 on the
+    downhill branch, not Doppler junk.
+
+Master avoids that class of bug by fitting a finished uphill trace
+and approaching from the same start. Hunt remains useful as an
+experiment, not as the production lock.
+
+
+--------------------------------------------------------------------------------
+10. PID LOOPBACK (WHY WE TRUST I = −3)
+--------------------------------------------------------------------------------
+
+archived/PID_Loopback.ipynb (OUT1 BNC to IN1, no Master edits while
+testing):
+
+  - Cable continuity
+  - Sign of I vs e = input − setpoint
+  - Only P=0, I=−3 regulated a DC plant
+  - IQ demod sign vs phase 0° / 180°
+
+That is why Master’s PI cell is not a guess from a textbook with
+positive I.
+
+
+--------------------------------------------------------------------------------
+11. COMMON FAILURES (LAB LOG)
+--------------------------------------------------------------------------------
+
+  DNS Errno 8 on rp-f0c970.local
+    Mac cannot resolve .local. Network/VPN/mDNS, or use the IP.
+
+  FPGA overlay is not pyrpl
+    Stock image still loaded. Close other PyRPL GUIs, RELOAD_FPGA=True.
+
+  PID rails instantly / error flies
+    Wrong loop sign. Set phase 180° or flip I, not both. Confirm park
+    error is already near 0 on the bright PD.
+
+  Error nulls, PD drops
+    Wrong zero (Doppler, neighbor, valley). Fix the fit / peak choice
+    / correction; do not crank I.
+
+  Lock dies when you run Open PID
+    That cell is designed to drop the loop. FPGA does not stop at
+    cell end otherwise.
+
+  asg.setup() after a custom table
+    DAC glitch or idle 0. LaserDrive is written to avoid this.
+
+  Sitting at scan stop
+    Heat and hysteresis. Code jumps back to start.
+
+  ilaser 200 mA
+    Wrong default historically. Lab requires 250 mA via Laser_Power.
+
+  Two notebooks connected
+    Two Pyrpl() instances. Use one.
+
+
+--------------------------------------------------------------------------------
+12. TESTS
+--------------------------------------------------------------------------------
+
+From the repo, with the venv:
+
+  .venv/bin/python -m pytest tests/   # if pytest is installed
+  or import tests.test_lockpoint etc.
+
+They cover S-curve windows, lockpoint correction (0.232+0.005=0.237),
+peak clustering, ASG table rules, Hunt catch logic, Koheron parsing.
+They do not talk to the Pitaya.
+
+
+--------------------------------------------------------------------------------
+13. DAY-TO-DAY CHEAT SHEET
+--------------------------------------------------------------------------------
+
+  1. Power: Laser_Power.ipynb setup → apply → on. Wait until rtact
+     is near rtset if you care about temperature. Leave the client
+     open or not; lason stays until off().
+  2. Master: settings → connect → AOM → coarse → peaks → triplet →
+     fine → PID.
+  3. MOT dim? Try LOCKPOINT_CORRECTION_V a few millivolts, re-run
+     settings + fine (or only fine if the guess is still good).
+  4. Done: Shutdown in Master (zeros OUT1, stops AOM). Optionally
+     laser.off() in Laser_Power.
+
+If the board will not connect, fix DNS/power before touching PID
+gains. The power notebook’s UART path and Master’s PyRPL path are
+independent except that they share the same hostname.
+
+
+--------------------------------------------------------------------------------
+14. GLOSSARY
+--------------------------------------------------------------------------------
+
+  ASG         Arbitrary signal generator (waveform RAM + offset)
+  iq0         IQ module: dither + lock-in demod of IN1
+  pid0        FPGA PI, input iq0, summed on OUT1
+  ival        Integrator state (can exceed analog rails)
+  S-curve     Odd error vs voltage through a line
+  Uphill      Low OUT1 → high OUT1
+  Peak 2      Middle of the L→R triplet; MOT lock
+  Dither      Small 20 kHz sine on OUT1
+  Linien LP   Mid-height between S-curve extrema
+  Correction  Extra volts added to that fit before parking
+  Hunt        Live downhill catch (archived)
+  CTL200      Koheron current + TEC driver
+
+================================================================================
+End of PROJECT_GUIDE.txt
+================================================================================
